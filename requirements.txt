@@ -1,10 +1,9 @@
 streamlit
 pandas
-plotly
 tabulate
 python-dotenv
 langchain-mistralai
 langchain-community
 langchain-text-splitters
 langchain-core
-faiss-cpu
+faiss-cpu==1.8.0.post1
