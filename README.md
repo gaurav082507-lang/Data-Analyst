@@ -23,6 +23,8 @@ Built by **Gaurav Gupta** · [Connect on LinkedIn](https://www.linkedin.com/in/g
 .
 ├── app.py                          # Streamlit app (UI + pipeline)
 ├── requirements.txt                # Python dependencies
+├── runtime.txt                     # Pins Python version (Streamlit Cloud)
+├── packages.txt                    # apt-get system dependencies (libgomp1 for FAISS)
 └── .streamlit/
     └── secrets.toml.example        # Template for your Mistral API key
 ```
@@ -84,8 +86,7 @@ The app opens at `http://localhost:8501`.
 2. Upload a CSV file using the **Upload Dataset** panel in the sidebar.
 3. Click **🚀 Run Analysis**.
 4. Watch the pipeline run through three stages: statistics computation → embedding/retrieval → report generation.
-5. Explore the results across five tabs:
-   - **📊 Dashboard** — interactive BI-style charts (KPI tiles, correlation heatmap, missing-value chart, distribution histograms, outlier box plots, category breakdowns, and a relationship/scatter explorer). Computed directly from pandas + Plotly — instant, no LLM call.
+5. Explore the results across four tabs:
    - **📄 Report** — the full AI-written analysis (downloadable as markdown)
    - **📈 Computed Statistics** — the raw pandas ground-truth numbers
    - **🔍 Retrieved Samples** — the illustrative rows pulled via MMR search
@@ -137,7 +138,34 @@ CSV Upload
 
 ---
 
-## 📄 License
+## 🚑 Troubleshooting: "Segmentation fault" on Streamlit Cloud
+
+If your deployed app crashes right after startup with a log like:
+
+```
+Uvicorn server started on :::8501
+.../run-streamlit.sh: line 9:   198 Segmentation fault      sudo -E -u appuser .../streamlit "$@"
+```
+
+this is **not an app bug** — it's FAISS's compiled binary crashing inside the cloud container. It's almost always one (or both) of:
+
+1. **An unpinned/too-new Python version.** Streamlit Community Cloud may run a very recent Python release that FAISS's wheels don't fully support yet.
+2. **A missing system library.** FAISS's Linux wheel needs `libgomp` (GNU OpenMP), which isn't installed by default on the container.
+
+This repo already includes the fix:
+
+- **`runtime.txt`** — pins Python to `3.12`, a version with well-tested FAISS wheels. (On Community Cloud you can also set this manually via **Advanced settings → Python version** when deploying.)
+- **`packages.txt`** — installs `libgomp1` via `apt-get` before your app starts.
+- **`requirements.txt`** — pins `faiss-cpu==1.8.0.post1`, a known-stable release, instead of leaving the version unpinned.
+
+If you still hit a segfault after this:
+- Reboot the app from the Community Cloud dashboard (**Manage app → Reboot**) so it picks up the new `runtime.txt`/`packages.txt`.
+- Double-check **Advanced settings → Python version** is set to `3.12`, since Community Cloud's dropdown can override `runtime.txt`.
+- As a last resort, FAISS's own docs note that container CPU-feature detection can misfire; try setting the environment variable `FAISS_OPT_LEVEL=generic` in your app's **Secrets**/environment to force the generic (non-SIMD) build path.
+
+---
+
+
 
 This project is provided as-is for personal and educational use.
 
