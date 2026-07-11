@@ -14,8 +14,6 @@ import os
 import tempfile
 
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -309,130 +307,6 @@ def generate_report(computed_stats_block: str, final_context: str, model_name: s
     return response.content
 
 
-# ============================================================
-# DASHBOARD — BI-style charts built directly from the dataframe
-# (pure pandas/plotly, no LLM call — instant and always accurate)
-# ============================================================
-BRAND_COLORS = ["#38bdf8", "#818cf8", "#c084fc", "#34d399", "#fb923c", "#f472b6", "#facc15", "#60a5fa"]
-
-
-def _themed(fig, height=380):
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0", family="Space Grotesk, sans-serif"),
-        margin=dict(l=10, r=10, t=45, b=10),
-        height=height,
-        legend=dict(bgcolor="rgba(0,0,0,0)"),
-    )
-    fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)", zerolinecolor="rgba(255,255,255,0.1)")
-    fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)", zerolinecolor="rgba(255,255,255,0.1)")
-    return fig
-
-
-def render_dashboard(df: pd.DataFrame):
-    numeric_cols = list(df.select_dtypes(include="number").columns)
-    categorical_cols = list(df.select_dtypes(include="object").columns)
-
-    # ---- KPI row ----
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Rows", f"{df.shape[0]:,}")
-    k2.metric("Columns", f"{df.shape[1]:,}")
-    k3.metric("Numeric Cols", f"{len(numeric_cols)}")
-    k4.metric("Categorical Cols", f"{len(categorical_cols)}")
-    k5.metric("Missing Cells", f"{int(df.isnull().sum().sum()):,}")
-
-    st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
-
-    # ---- Row 1: Correlation heatmap + Missing values ----
-    c1, c2 = st.columns([1.3, 1])
-    with c1:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**🔗 Correlation Heatmap**")
-        if len(numeric_cols) >= 2:
-            corr = df[numeric_cols].corr()
-            fig = px.imshow(
-                corr, text_auto=".2f", aspect="auto",
-                color_continuous_scale=["#0b0f19", "#6366f1", "#38bdf8"],
-            )
-            st.plotly_chart(_themed(fig, 420), use_container_width=True)
-        else:
-            st.caption("Need at least 2 numeric columns for a correlation matrix.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with c2:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**🧩 Missing Values by Column**")
-        missing = df.isnull().sum()
-        missing = missing[missing > 0].sort_values(ascending=True)
-        if len(missing) > 0:
-            fig = px.bar(
-                x=missing.values, y=missing.index, orientation="h",
-                color_discrete_sequence=["#fb923c"],
-                labels={"x": "Missing count", "y": ""},
-            )
-            st.plotly_chart(_themed(fig, 420), use_container_width=True)
-        else:
-            st.success("No missing values detected. ✅")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # ---- Row 2: Numeric distribution + Outliers ----
-    if numeric_cols:
-        c3, c4 = st.columns(2)
-        with c3:
-            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.markdown("**📊 Distribution Explorer**")
-            sel_num = st.selectbox("Numeric column", numeric_cols, key="dash_hist_col")
-            fig = px.histogram(df, x=sel_num, nbins=30, color_discrete_sequence=["#38bdf8"])
-            st.plotly_chart(_themed(fig, 360), use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with c4:
-            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.markdown("**🎯 Outlier Detection (Box Plot)**")
-            sel_box = st.selectbox("Numeric column", numeric_cols, key="dash_box_col")
-            fig = px.box(df, y=sel_box, color_discrete_sequence=["#c084fc"], points="outliers")
-            st.plotly_chart(_themed(fig, 360), use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    # ---- Row 3: Categorical breakdown + numeric vs numeric scatter ----
-    c5, c6 = st.columns(2)
-    with c5:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**🏷️ Category Breakdown**")
-        if categorical_cols:
-            sel_cat = st.selectbox("Categorical column", categorical_cols, key="dash_cat_col")
-            counts = df[sel_cat].value_counts().head(10).sort_values(ascending=True)
-            fig = px.bar(
-                x=counts.values, y=counts.index.astype(str), orientation="h",
-                color=counts.index.astype(str), color_discrete_sequence=BRAND_COLORS,
-                labels={"x": "Count", "y": ""},
-            )
-            fig.update_layout(showlegend=False)
-            st.plotly_chart(_themed(fig, 380), use_container_width=True)
-        else:
-            st.caption("No categorical columns found in this dataset.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with c6:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**⚡ Relationship Explorer**")
-        if len(numeric_cols) >= 2:
-            x_col = st.selectbox("X axis", numeric_cols, index=0, key="dash_scatter_x")
-            y_col = st.selectbox("Y axis", numeric_cols, index=min(1, len(numeric_cols) - 1), key="dash_scatter_y")
-            color_col = st.selectbox("Color by (optional)", ["None"] + categorical_cols, key="dash_scatter_color")
-            fig = px.scatter(
-                df, x=x_col, y=y_col,
-                color=None if color_col == "None" else color_col,
-                color_discrete_sequence=BRAND_COLORS,
-                opacity=0.75,
-            )
-            st.plotly_chart(_themed(fig, 380), use_container_width=True)
-        else:
-            st.caption("Need at least 2 numeric columns for a scatter plot.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
 
 # ============================================================
 # API KEY — resolved from st.secrets / .env only (no UI input)
@@ -551,13 +425,19 @@ if run_clicked:
 # ============================================================
 # RESULTS
 # ============================================================
-if st.session_state.report:
-    tab_dashboard, tab_report, tab_stats, tab_samples, tab_preview = st.tabs(
-        ["📊 Dashboard", "📄 Report", "📈 Computed Statistics", "🔍 Retrieved Samples", "🗂️ Data Preview"]
-    )
+if st.session_state.df is not None:
+    df = st.session_state.df
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Rows", f"{df.shape[0]:,}")
+    c2.metric("Columns", f"{df.shape[1]:,}")
+    c3.metric("Missing Values", f"{int(df.isnull().sum().sum()):,}")
+    c4.metric("Duplicate Rows", f"{int(df.duplicated().sum()):,}")
+    st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
-    with tab_dashboard:
-        render_dashboard(st.session_state.df)
+if st.session_state.report:
+    tab_report, tab_stats, tab_samples, tab_preview = st.tabs(
+        ["📄 Report", "📈 Computed Statistics", "🔍 Retrieved Samples", "🗂️ Data Preview"]
+    )
 
     with tab_report:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
