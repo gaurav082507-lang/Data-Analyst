@@ -53,17 +53,19 @@ st.markdown(
                 #0b0f19;
         }
 
-        .block-container {padding-top: 2.2rem; padding-bottom: 4rem; max-width: 1200px;}
+        .block-container {padding-top: 4.5rem; padding-bottom: 4rem; max-width: 1200px;}
 
         /* ---- Hero ---- */
         .hero-eyebrow {
             font-family: 'JetBrains Mono', monospace;
-            letter-spacing: 3px;
-            font-size: 0.78rem;
-            color: #64748b;
+            letter-spacing: 4px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #e0f2fe;
             text-transform: uppercase;
             text-align: center;
-            margin-bottom: 6px;
+            margin: 0 0 14px 0;
+            text-shadow: 0 0 12px rgba(56,189,248,0.55);
         }
         .hero-title {
             text-align: center;
