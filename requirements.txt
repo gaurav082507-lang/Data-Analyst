@@ -1,5 +1,6 @@
 streamlit
 pandas
+plotly
 tabulate
 python-dotenv
 langchain-mistralai
