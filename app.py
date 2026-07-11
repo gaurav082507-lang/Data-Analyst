@@ -4,8 +4,10 @@ Automated Data Analysis Engine — Streamlit UI
 Wraps the original pandas + LangChain (Mistral) RAG pipeline in a Streamlit
 front end. The core logic (statistics computation, CSV loading/chunking,
 embedding, MMR retrieval, prompt, and chain) is UNCHANGED from the original
-script — only reorganized into functions and connected to UI elements
-(file uploader, API key input, buttons, tabs).
+script — only reorganized into functions and connected to UI elements.
+
+The Mistral API key is read from Streamlit secrets / environment (.env) —
+it is never entered by the user in the UI.
 """
 
 import os
@@ -27,26 +29,156 @@ load_dotenv()
 # PAGE CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="Automated Data Analysis Engine",
-    page_icon="📊",
+    page_title="DataLens AI · Automated Data Analysis Engine",
+    page_icon="🧠",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# ---- light styling polish ----
+# ============================================================
+# THEME / CSS — dark, data-analyst aesthetic
+# ============================================================
 st.markdown(
     """
     <style>
-        .block-container {padding-top: 2rem; padding-bottom: 3rem;}
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+        html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif; }
+        code, pre, .stCodeBlock, div[data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; }
+
+        .stApp {
+            background:
+                radial-gradient(circle at 15% 0%, rgba(56,189,248,0.10), transparent 40%),
+                radial-gradient(circle at 85% 15%, rgba(168,85,247,0.10), transparent 40%),
+                #0b0f19;
+        }
+
+        .block-container {padding-top: 2.2rem; padding-bottom: 4rem; max-width: 1200px;}
+
+        /* ---- Hero ---- */
+        .hero-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 3px;
+            font-size: 0.78rem;
+            color: #64748b;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 6px;
+        }
+        .hero-title {
+            text-align: center;
+            font-size: 3.1rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin: 0 0 10px 0;
+            background: linear-gradient(90deg, #38bdf8 0%, #818cf8 45%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-subtitle {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 1.02rem;
+            max-width: 640px;
+            margin: 0 auto 28px auto;
+        }
+        .hero-tags {
+            display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 30px;
+        }
+        .hero-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            color: #7dd3fc;
+            background: rgba(56,189,248,0.08);
+            border: 1px solid rgba(56,189,248,0.25);
+            padding: 5px 12px;
+            border-radius: 999px;
+        }
+
+        /* ---- Status pill ---- */
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            padding: 7px 14px;
+            border-radius: 999px;
+            margin-bottom: 4px;
+        }
+        .status-ok { background: rgba(34,197,94,0.10); border: 1px solid rgba(34,197,94,0.35); color: #4ade80; }
+        .status-warn { background: rgba(251,146,60,0.10); border: 1px solid rgba(251,146,60,0.35); color: #fb923c; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+
+        /* ---- Cards ---- */
+        .glass-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 22px 24px;
+            margin-bottom: 18px;
+        }
+
+        /* ---- Metrics ---- */
         div[data-testid="stMetric"] {
-            background-color: rgba(120,120,120,0.08);
-            border-radius: 10px;
-            padding: 12px 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 16px 14px;
         }
-        .stTabs [data-baseweb="tab-list"] {gap: 4px;}
+        div[data-testid="stMetricLabel"] { color: #94a3b8 !important; }
+
+        /* ---- Tabs ---- */
+        .stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .stTabs [data-baseweb="tab"] {
-            border-radius: 8px 8px 0 0;
-            padding: 8px 16px;
+            border-radius: 10px 10px 0 0;
+            padding: 10px 18px;
+            color: #94a3b8;
         }
+        .stTabs [aria-selected="true"] {
+            color: #38bdf8 !important;
+            background: rgba(56,189,248,0.08) !important;
+        }
+
+        /* ---- Buttons ---- */
+        .stButton > button, .stDownloadButton > button {
+            background: linear-gradient(90deg, #0ea5e9, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            padding: 0.6rem 1rem;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+        .stButton > button:hover, .stDownloadButton > button:hover {
+            transform: translateY(-1px);
+            opacity: 0.92;
+        }
+
+        /* ---- Sidebar ---- */
+        section[data-testid="stSidebar"] {
+            background: #0d1220;
+            border-right: 1px solid rgba(255,255,255,0.06);
+        }
+        section[data-testid="stSidebar"] .stFileUploader {
+            border-radius: 12px;
+        }
+
+        /* ---- Footer ---- */
+        .footer {
+            margin-top: 50px;
+            padding-top: 22px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            text-align: center;
+            color: #64748b;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+        .footer a {
+            color: #38bdf8;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .footer a:hover { text-decoration: underline; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -174,27 +306,45 @@ def generate_report(computed_stats_block: str, final_context: str, model_name: s
 
 
 # ============================================================
-# SIDEBAR — API key + file upload + run controls
+# API KEY — resolved from st.secrets / .env only (no UI input)
+# ============================================================
+def resolve_mistral_api_key() -> str:
+    key = os.environ.get("MISTRAL_API_KEY", "")
+    if not key:
+        try:
+            key = st.secrets.get("MISTRAL_API_KEY", "")
+        except Exception:
+            key = ""
+    if key:
+        os.environ["MISTRAL_API_KEY"] = key
+    return key
+
+
+mistral_key_present = bool(resolve_mistral_api_key())
+
+# ============================================================
+# SIDEBAR — dataset upload + run controls only
 # ============================================================
 with st.sidebar:
-    st.title("📊 Data Analysis Engine")
-    st.caption("pandas stats + FAISS/MMR retrieval + Mistral RAG report")
+    st.markdown("### 🧠 DataLens AI")
+    st.caption("pandas stats · FAISS/MMR retrieval · Mistral RAG report")
+
+    st.markdown("")
+    if mistral_key_present:
+        st.markdown(
+            '<div class="status-pill status-ok"><span class="dot"></span> Mistral API key connected</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="status-pill status-warn"><span class="dot"></span> No API key found</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Add `MISTRAL_API_KEY` to your `.streamlit/secrets.toml` or `.env` file.")
 
     st.divider()
-    st.subheader("🔑 Mistral API Key")
-    env_key = os.environ.get("MISTRAL_API_KEY", "")
-    api_key_input = st.text_input(
-        "MISTRAL_API_KEY",
-        value=env_key,
-        type="password",
-        help="Loaded from .env if present. You can override it here.",
-    )
-    if api_key_input:
-        os.environ["MISTRAL_API_KEY"] = api_key_input
-
-    st.divider()
-    st.subheader("📁 Upload Dataset")
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    st.markdown("#### 📁 Upload Dataset")
+    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"], label_visibility="collapsed")
 
     use_default = False
     if uploaded_file is None and os.path.exists("StudentPerformanceFactors.csv"):
@@ -204,10 +354,26 @@ with st.sidebar:
     run_clicked = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
 
 # ============================================================
-# MAIN AREA
+# HERO
 # ============================================================
-st.title("Automated Data Analysis Engine")
-st.write("Upload a CSV in the sidebar, then click **Run Analysis** to generate a full statistical + AI-written report.")
+st.markdown('<div class="hero-eyebrow">AUTONOMOUS DATA ANALYSIS ENGINE</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-title">DataLens AI</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="hero-subtitle">Upload any CSV and get a ground-truth statistical breakdown, '
+    'RAG-retrieved sample records, and a full AI-written analyst report — in seconds.</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+    <div class="hero-tags">
+        <span class="hero-tag">📐 pandas</span>
+        <span class="hero-tag">🧬 FAISS + MMR</span>
+        <span class="hero-tag">🔗 LangChain</span>
+        <span class="hero-tag">🤖 Mistral</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 if "report" not in st.session_state:
     st.session_state.report = None
@@ -228,8 +394,8 @@ elif use_default:
 
 # ---- Run pipeline ----
 if run_clicked:
-    if not os.environ.get("MISTRAL_API_KEY"):
-        st.error("Please provide a Mistral API key in the sidebar before running.")
+    if not mistral_key_present:
+        st.error("No Mistral API key found. Add `MISTRAL_API_KEY` to `.streamlit/secrets.toml` or your `.env` file, then rerun.")
     elif not csv_path:
         st.error("Please upload a CSV file (or select the default dataset) before running.")
     else:
@@ -263,8 +429,7 @@ if st.session_state.df is not None:
     c2.metric("Columns", f"{df.shape[1]:,}")
     c3.metric("Missing Values", f"{int(df.isnull().sum().sum()):,}")
     c4.metric("Duplicate Rows", f"{int(df.duplicated().sum()):,}")
-
-    st.divider()
+    st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
 if st.session_state.report:
     tab_report, tab_stats, tab_samples, tab_preview = st.tabs(
@@ -272,7 +437,9 @@ if st.session_state.report:
     )
 
     with tab_report:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.markdown(st.session_state.report)
+        st.markdown('</div>', unsafe_allow_html=True)
         st.download_button(
             "⬇️ Download Report (Markdown)",
             data=st.session_state.report,
@@ -281,13 +448,35 @@ if st.session_state.report:
         )
 
     with tab_stats:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.markdown(st.session_state.stats_block)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_samples:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.text(st.session_state.samples if st.session_state.samples else "No samples retrieved.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_preview:
         st.dataframe(st.session_state.df, use_container_width=True)
 
 elif not run_clicked:
-    st.info("👈 Upload a CSV and click **Run Analysis** in the sidebar to get started.")
+    st.markdown(
+        '<div class="glass-card" style="text-align:center; color:#94a3b8;">'
+        '👈 Upload a CSV in the sidebar and click <b>Run Analysis</b> to get started.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+# ============================================================
+# FOOTER
+# ============================================================
+st.markdown(
+    """
+    <div class="footer">
+        Built by <b>Gaurav Gupta</b> &nbsp;·&nbsp;
+        <a href="https://www.linkedin.com/in/gaurav-gupta-79754a377" target="_blank">Connect on LinkedIn</a>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
