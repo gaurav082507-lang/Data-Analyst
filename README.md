@@ -84,7 +84,8 @@ The app opens at `http://localhost:8501`.
 2. Upload a CSV file using the **Upload Dataset** panel in the sidebar.
 3. Click **🚀 Run Analysis**.
 4. Watch the pipeline run through three stages: statistics computation → embedding/retrieval → report generation.
-5. Explore the results across four tabs:
+5. Explore the results across five tabs:
+   - **📊 Dashboard** — interactive BI-style charts (KPI tiles, correlation heatmap, missing-value chart, distribution histograms, outlier box plots, category breakdowns, and a relationship/scatter explorer). Computed directly from pandas + Plotly — instant, no LLM call.
    - **📄 Report** — the full AI-written analysis (downloadable as markdown)
    - **📈 Computed Statistics** — the raw pandas ground-truth numbers
    - **🔍 Retrieved Samples** — the illustrative rows pulled via MMR search
