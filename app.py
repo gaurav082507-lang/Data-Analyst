@@ -302,7 +302,7 @@ def generate_report(computed_stats_block: str, final_context: str, model_name: s
     ])
 
     LLM = ChatGoogleGenerativeAI(model=model_name)
-    chain = prompt | LLM if False else prompt | ChatGoogleGenerativeAI(model='gemini-2.5-flash')  # see note below
+    chain = prompt | LLM if False else prompt | ChatGoogleGenerativeAI(model='gemini-3.5-flash-lite')  # see note below
     response = chain.invoke({"stats": computed_stats_block, "samples": final_context})
     return response.content
 
@@ -415,7 +415,7 @@ if run_clicked:
                 st.session_state.samples = final_context
 
                 st.write("🧠 Generating report with Google Gemini...")
-                report = generate_report(computed_stats_block, final_context, "gemini-2.5-flash")
+                report = generate_report(computed_stats_block, final_context, "gemini-3.5-flash-lite")
                 st.session_state.report = report
 
                 status.update(label="✅ Analysis complete", state="complete", expanded=False)
