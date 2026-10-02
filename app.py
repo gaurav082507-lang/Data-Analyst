@@ -270,7 +270,7 @@ def build_retrieved_samples(csv_path: str):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     docs_chunk = splitter.split_documents(docs)
 
-    embedding_model = GoogleGenerativeAIEmbeddings(model='models/embedding-001')
+    embedding_model = GoogleGenerativeAIEmbeddings(model='models/text-embedding-004')
     vectorstore = FAISS.from_documents(documents=docs_chunk, embedding=embedding_model)
 
     retriever = vectorstore.as_retriever(
