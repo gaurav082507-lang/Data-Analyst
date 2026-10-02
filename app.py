@@ -1,12 +1,12 @@
 """
 Automated Data Analysis Engine — Streamlit UI
 
-Wraps the original pandas + LangChain (Mistral) RAG pipeline in a Streamlit
+Wraps the original pandas + LangChain (Google Gemini) RAG pipeline in a Streamlit
 front end. The core logic (statistics computation, CSV loading/chunking,
 embedding, MMR retrieval, prompt, and chain) is UNCHANGED from the original
 script — only reorganized into functions and connected to UI elements.
 
-The Mistral API key is read from Streamlit secrets / environment (.env) —
+The Google API key is read from Streamlit secrets / environment (.env) —
 it is never entered by the user in the UI.
 """
 
@@ -17,7 +17,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -270,7 +270,7 @@ def build_retrieved_samples(csv_path: str):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     docs_chunk = splitter.split_documents(docs)
 
-    embedding_model = MistralAIEmbeddings(model='mistral-embed-2312')
+    embedding_model = GoogleGenerativeAIEmbeddings(model='models/embedding-001')
     vectorstore = FAISS.from_documents(documents=docs_chunk, embedding=embedding_model)
 
     retriever = vectorstore.as_retriever(
@@ -301,8 +301,8 @@ def generate_report(computed_stats_block: str, final_context: str, model_name: s
         ('human', 'Computed statistics:\n{stats}\n\nRetrieved sample rows:\n{samples}')
     ])
 
-    LLM = ChatMistralAI(model=model_name)
-    chain = prompt | LLM if False else prompt | ChatMistralAI(model='mistral-medium-3-5')  # see note below
+    LLM = ChatGoogleGenerativeAI(model=model_name)
+    chain = prompt | LLM if False else prompt | ChatGoogleGenerativeAI(model='gemini-2.5-flash')  # see note below
     response = chain.invoke({"stats": computed_stats_block, "samples": final_context})
     return response.content
 
@@ -311,31 +311,31 @@ def generate_report(computed_stats_block: str, final_context: str, model_name: s
 # ============================================================
 # API KEY — resolved from st.secrets / .env only (no UI input)
 # ============================================================
-def resolve_mistral_api_key() -> str:
-    key = os.environ.get("MISTRAL_API_KEY", "")
+def resolve_google_gemini_api_key() -> str:
+    key = os.environ.get("GOOGLE_API_KEY", "")
     if not key:
         try:
-            key = st.secrets.get("MISTRAL_API_KEY", "")
+            key = st.secrets.get("GOOGLE_API_KEY", "")
         except Exception:
             key = ""
     if key:
-        os.environ["MISTRAL_API_KEY"] = key
+        os.environ["GOOGLE_API_KEY"] = key
     return key
 
 
-mistral_key_present = bool(resolve_mistral_api_key())
+google_gemini_key_present = bool(resolve_google_gemini_api_key())
 
 # ============================================================
 # SIDEBAR — dataset upload + run controls only
 # ============================================================
 with st.sidebar:
     st.markdown("### 🧠 DataLens AI")
-    st.caption("pandas stats · FAISS/MMR retrieval · Mistral RAG report")
+    st.caption("pandas stats · FAISS/MMR retrieval · Gemini RAG report")
 
     st.markdown("")
-    if mistral_key_present:
+    if google_gemini_key_present:
         st.markdown(
-            '<div class="status-pill status-ok"><span class="dot"></span> Mistral API key connected</div>',
+            '<div class="status-pill status-ok"><span class="dot"></span> Google API key connected</div>',
             unsafe_allow_html=True,
         )
     else:
@@ -343,7 +343,7 @@ with st.sidebar:
             '<div class="status-pill status-warn"><span class="dot"></span> No API key found</div>',
             unsafe_allow_html=True,
         )
-        st.caption("Add `MISTRAL_API_KEY` to your `.streamlit/secrets.toml` or `.env` file.")
+        st.caption("Add `GOOGLE_API_KEY` to your `.streamlit/secrets.toml` or `.env` file.")
 
     st.divider()
     st.markdown("#### 📁 Upload Dataset")
@@ -372,7 +372,7 @@ st.markdown(
         <span class="hero-tag">📐 pandas</span>
         <span class="hero-tag">🧬 FAISS + MMR</span>
         <span class="hero-tag">🔗 LangChain</span>
-        <span class="hero-tag">🤖 Mistral</span>
+        <span class="hero-tag">🤖 Google Gemini</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -397,8 +397,8 @@ elif use_default:
 
 # ---- Run pipeline ----
 if run_clicked:
-    if not mistral_key_present:
-        st.error("No Mistral API key found. Add `MISTRAL_API_KEY` to `.streamlit/secrets.toml` or your `.env` file, then rerun.")
+    if not google_gemini_key_present:
+        st.error("No Google API key found. Add `GOOGLE_API_KEY` to `.streamlit/secrets.toml` or your `.env` file, then rerun.")
     elif not csv_path:
         st.error("Please upload a CSV file (or select the default dataset) before running.")
     else:
@@ -414,8 +414,8 @@ if run_clicked:
                 final_context = build_retrieved_samples(csv_path)
                 st.session_state.samples = final_context
 
-                st.write("🧠 Generating report with Mistral...")
-                report = generate_report(computed_stats_block, final_context, "mistral-medium-3-5")
+                st.write("🧠 Generating report with Google Gemini...")
+                report = generate_report(computed_stats_block, final_context, "gemini-2.5-flash")
                 st.session_state.report = report
 
                 status.update(label="✅ Analysis complete", state="complete", expanded=False)
